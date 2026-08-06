@@ -1,0 +1,15 @@
+langchain-mcp-adapters
+langchain
+langchain-community
+langchain-classic
+rank_bm25
+faiss-cpu
+fastapi
+mcp
+pandas
+openpyxl
+sqlalchemy
+psycopg[binary]
+python-dotenv
+psycopg2
+openai
