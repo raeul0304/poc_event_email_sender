@@ -1,7 +1,7 @@
 # 키워드 기반 데이터 필터, 데이터프레임 생성, 타입 정리
 from __future__ import annotations
+from typing import Dict, Any, List
 from collections.abc import Sequence, Iterable
-from typing import Any
 import pandas as pd
 
 
@@ -25,8 +25,28 @@ EXCLUDE_COLUMNS = {"Index", "링크", "종료 일시", "유료 여부", "첨부�
 
 
 
+def get_filter_options_data(df: pd.DataFrame) -> Dict[str, List[str]]:
+    """DataFrame에서 필터 드롭다운을 위한 유니크 값들 추출"""
+    if df.empty:
+        return {"organizers": [], "event_types": [], "keywords": [], "locations": []}
 
+    organizers = df["주최"].dropna().unique().tolist() if "주최" in df.columns else []
+    event_types = df["행사 성격"].dropna().unique().tolist() if "행사 성격" in df.columns else []
+    locations = df["장소"].dropna().unique().tolist() if "장소" in df.columns else []
+    
+    keywords_set = set()
+    if "주요 키워드" in df.columns:
+        for kw_string in df["주요 키워드"].dropna():
+            keywords_set.update([k.strip() for k in str(kw_string).split(",") if k.strip()])
 
+    result = {
+        "organizers": sorted(organizers),
+        "event_types": sorted(event_types),
+        "keywords": sorted(list(keywords_set)),
+        "locations": sorted(locations),
+    }
+    print(f"\n\n[DEBUG] 필터 옵션 드롭다운값 : {result} \n")
+    return result
 
 
 

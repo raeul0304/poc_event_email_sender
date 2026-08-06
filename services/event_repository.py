@@ -5,6 +5,7 @@ import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
+from functools import lru_cache
 
 
 load_dotenv()
@@ -28,6 +29,7 @@ def get_db_connection():
 
 
 class EventRepository:
+    @lru_cache(maxsize=1)
     def load_events_dataframe(self) -> pd.DataFrame:
         query = """
             SELECT event_id, payload::jsonb -> 'source_row' AS source_row
@@ -55,6 +57,8 @@ class EventRepository:
         print(f"[debug] DB조회 : {event_df.head()}")
         return event_df
 
+    def clear_cache(self):
+        self.load_events_dataframe.cache_clear()
         
 
 
