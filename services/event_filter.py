@@ -5,25 +5,7 @@ from collections.abc import Sequence, Iterable
 import pandas as pd
 import os
 from schemas import EventSearchRequest
-
-
-COLUMN_MAP = {
-    "title": "제목",
-    "location": "장소",
-    "organizer": "주최",
-    "start_date": "시작 일시",
-    "end_date": "종료 일시",
-    "summary": "주제 요약",
-    "event_type": "행사 성격",
-    "keyword": "주요 키워드",
-    "source": "출처",
-    "registration_link": "등록 링크",
-    "more_info_link": "상세 정보 링크",
-    "is_not_free": "유료 여부",
-}
-
-DROPDOWN_FIELDS = ["organizer", "event_type", "location", "keyword"]
-COMMA_SEPARATED_FIELDS = ["keyword"]
+from services.event_fields import COLUMN_MAP, DROPDOWN_FIELDS, COMMA_SEPARATED_FIELDS
 
 
 
@@ -47,7 +29,6 @@ def get_filter_options_data(df: pd.DataFrame) -> Dict[str, List[str]]:
             else:
                 result[plural_key] = sorted(df[db_column].dropna().unique().tolist())
     
-    print(f"\n\n[DEBUG] 필터 옵션 드롭다운값 : {result} \n")
     return result
 
 
@@ -91,12 +72,14 @@ def _map_row_to_event(row: pd.Series) -> Dict[str, Any]:
 
     for en_key, kr_key in COLUMN_MAP.items():
         if en_key not in COMMA_SEPARATED_FIELDS:
-            event_item[en_key] = str(row.get(kr_key, ""))
+            val = row.get(kr_key)
+            event_item[en_key] = "" if pd.isna(val) else str(val)
 
     for field in COMMA_SEPARATED_FIELDS:
         plural_key = f"{field}s"
         kr_col = COLUMN_MAP.get(field)
-        if kr_col and pd.notna(row.get(kr_col)):
+        val = row.get(kr_col)
+        if kr_col and pd.notna(val) and str(val).strip() and str(val).lower() != "nan":
             event_item[plural_key] = [v.strip() for v in str(row.get(kr_col, "")).split(",") if v.strip()]
         else:
             event_item[plural_key] = []

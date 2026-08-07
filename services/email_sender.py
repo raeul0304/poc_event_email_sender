@@ -6,6 +6,8 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
+
+
 def load_server_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     """config.json 파일을 읽어 MCP 서버 설정을 로드"""
 
@@ -18,6 +20,7 @@ def load_server_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[st
         config = json.load(f)
 
     return config
+
 
 
 async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
@@ -38,6 +41,7 @@ async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
         raise RuntimeError(f"send_email Tool을 찾을 수 없습니다. 현재 사용 가능한 Tool 목록: {available_tools}")
 
     return send_email_tool
+
 
 
 async def send_email(to: str | list[str], subject: str, body: str, *, cc: str | list[str] | None = None, bcc: str | list[str] | None = None, config_path: str | Path = DEFAULT_CONFIG_PATH):

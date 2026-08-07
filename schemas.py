@@ -36,3 +36,10 @@ class EventItem(BaseModel):
 
 class EventSearchResponse(BaseModel):
     events: List[EventItem]
+
+
+class AiEventSearchRequest(BaseModel):
+    ai_search: str = Field(description="자연어 검색 쿼리")
+
+class AiSearchLLMResponse(BaseModel):
+    matched_event_ids: List[str] = Field(description="쿼리에 매칭된 행사의 event_id 목록")
