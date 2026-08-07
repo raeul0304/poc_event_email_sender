@@ -3,76 +3,128 @@ from __future__ import annotations
 from typing import Dict, Any, List
 from collections.abc import Sequence, Iterable
 import pandas as pd
+import os
+from schemas import EventSearchRequest
 
 
-COLUMN_MAP={
-    "제목": "title",
-    "장소": "location",
-    "주최": "organizer",
-    "시작 일시": "start_date",
-    "종료 일시": "end_date",
-    "주제 요약": "summary",
-    "행사 성격": "event_type",
-    "주요 키워드": "keywords",
-    "출처": "source",
-    "등록 링크": "registration_link",
-    "상세 정보 링크": "more_info_link",
-    "유료 여부": "is_free",
+COLUMN_MAP = {
+    "title": "제목",
+    "location": "장소",
+    "organizer": "주최",
+    "start_date": "시작 일시",
+    "end_date": "종료 일시",
+    "summary": "주제 요약",
+    "event_type": "행사 성격",
+    "keyword": "주요 키워드",
+    "source": "출처",
+    "registration_link": "등록 링크",
+    "more_info_link": "상세 정보 링크",
+    "is_not_free": "유료 여부",
 }
 
-EXCLUDE_COLUMNS = {"Index", "링크", "종료 일시", "유료 여부", "첨부파일 유무"}
+DROPDOWN_FIELDS = ["organizer", "event_type", "location", "keyword"]
+COMMA_SEPARATED_FIELDS = ["keyword"]
 
 
 
-
+# ======== 필터 옵션값 ===========
 def get_filter_options_data(df: pd.DataFrame) -> Dict[str, List[str]]:
     """DataFrame에서 필터 드롭다운을 위한 유니크 값들 추출"""
+    result = {f"{field}s": [] for field in DROPDOWN_FIELDS}
     if df.empty:
-        return {"organizers": [], "event_types": [], "keywords": [], "locations": []}
+        return result
 
-    organizers = df["주최"].dropna().unique().tolist() if "주최" in df.columns else []
-    event_types = df["행사 성격"].dropna().unique().tolist() if "행사 성격" in df.columns else []
-    locations = df["장소"].dropna().unique().tolist() if "장소" in df.columns else []
+    for field in DROPDOWN_FIELDS:
+        plural_key = f"{field}s"
+        db_column = COLUMN_MAP.get(field)
+        
+        if db_column and db_column in df.columns:
+            if field in COMMA_SEPARATED_FIELDS:
+                values_set = set()
+                for string_val in df[db_column].dropna():
+                    values_set.update([v.strip() for v in str(string_val).split(",") if v.strip()])
+                result[plural_key] = sorted(list(values_set))
+            else:
+                result[plural_key] = sorted(df[db_column].dropna().unique().tolist())
     
-    keywords_set = set()
-    if "주요 키워드" in df.columns:
-        for kw_string in df["주요 키워드"].dropna():
-            keywords_set.update([k.strip() for k in str(kw_string).split(",") if k.strip()])
-
-    result = {
-        "organizers": sorted(organizers),
-        "event_types": sorted(event_types),
-        "keywords": sorted(list(keywords_set)),
-        "locations": sorted(locations),
-    }
     print(f"\n\n[DEBUG] 필터 옵션 드롭다운값 : {result} \n")
     return result
 
 
 
 
+# ========= 필터 적용 검색 ============
+def _apply_isin_filter(df: pd.DataFrame, column_name: str, values: List[str]) -> pd.DataFrame:
+    """리스트에 정확히 일치하는 값을 필터링"""
+    if values and column_name in df.columns:
+        return df[df[column_name].isin(values)]
+    return df
 
 
+def _apply_contains_filter(df: pd.DataFrame, column_name: str, search_values: List[str]) -> pd.DataFrame:
+    """값 중 하나라도 포함되어 있으면 필터링"""
+    if search_values and column_name in df.columns:
+        return df[df[column_name].apply(
+            lambda x: any(v.lower() in str(x).lower() for v in search_values)
+        )]
+    return df
 
-# 키워드 기반 필터
-def filter_events_by_keywords(events: pd.DataFrame, keywords: str | Sequence[str]) -> pd.DataFrame:
-    """입력한 키워드 중 하나 이상이 포함된 행사만 반환"""
 
-    if isinstance(keywords, str):
-        keywords = keywords.split(",")  #우선 리스트로 받는다고 가정...
+def _apply_date_filter(df: pd.DataFrame, start_col: str, end_col: str, start_date: str, end_date: str) -> pd.DataFrame:
+    """시작 일시와 종료 일시를 기준으로 날짜 범위를 필터링합니다."""
+    def _extract_and_parse_dates(series: pd.Series) -> pd.Series:
+        extracted_dates = series.astype(str).str.extract(r'(\d{4}-\d{2}-\d{2})')[0]
+        return pd.to_datetime(extracted_dates, errors='coerce')
 
-    searchable_text =(
-        events[events.columns.difference(EXCLUDE_COLUMNS)].fillna("").astype(str).agg(" ".join, axis=1).str.casefold()
-    )
+    if start_date and start_col in df.columns:
+        df = df[_extract_and_parse_dates(df[start_col]) >= pd.to_datetime(start_date)]
+        
+    if end_date and end_col in df.columns:
+        df = df[_extract_and_parse_dates(df[end_col]) <= pd.to_datetime(end_date)]
+        
+    return df
 
-    matched = searchable_text.apply(
-        lambda text: any(
-            keyword in text
-            for keyword in keywords
-        )
-    )
 
-    filtered_events = events.loc[matched].copy()
-    print(f"키워드 기반 필터링 결과: {len(filtered_events)}개의 행사가 선택됨\n {filtered_events.shape[0]}")
+def _map_row_to_event(row: pd.Series) -> Dict[str, Any]:
+    """API 응답 스펙으로 변환"""
+    event_item = {"event_id": str(row.get("event_id", ""))}
 
-    return filtered_events
+    for en_key, kr_key in COLUMN_MAP.items():
+        if en_key not in COMMA_SEPARATED_FIELDS:
+            event_item[en_key] = str(row.get(kr_key, ""))
+
+    for field in COMMA_SEPARATED_FIELDS:
+        plural_key = f"{field}s"
+        kr_col = COLUMN_MAP.get(field)
+        if kr_col and pd.notna(row.get(kr_col)):
+            event_item[plural_key] = [v.strip() for v in str(row.get(kr_col, "")).split(",") if v.strip()]
+        else:
+            event_item[plural_key] = []
+
+    return event_item
+
+
+def filter_and_map_events(df: pd.DataFrame, request: EventSearchRequest) -> List[Dict[str, Any]]:
+    if df.empty:
+        return []
+
+    filtered_df = df.copy()
+
+    for field in DROPDOWN_FIELDS:
+        plural_key = f"{field}s"
+        req_values = getattr(request, plural_key, [])
+        db_column = COLUMN_MAP.get(field)
+
+        if req_values and db_column and db_column in filtered_df.columns:
+            if field in COMMA_SEPARATED_FIELDS:
+                filtered_df = _apply_contains_filter(filtered_df, db_column, req_values)
+            else:
+                filtered_df = _apply_isin_filter(filtered_df, db_column, req_values)
+
+    #날짜 필터
+    start_col = COLUMN_MAP.get("start_date")
+    end_col = COLUMN_MAP.get("end_date")
+    if start_col and end_col:
+        filtered_df = _apply_date_filter(filtered_df, start_col, end_col, request.start_date, request.end_date)
+
+    return [_map_row_to_event(row) for _, row in filtered_df.iterrows()]
