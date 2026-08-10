@@ -1,9 +1,12 @@
 import json
+import asyncio
 from pathlib import Path
 from typing import Any
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from schemas import EmailResult
 
-BASE_DIR = Path(__file__).resolve().parent
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
 
@@ -30,6 +33,10 @@ async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
     client = MultiServerMCPClient(config)
     tools = await client.get_tools()
 
+    for tool in tools:
+        print(tool.name)
+        print(tool.args_schema)
+
     send_email_tool = next(
         (tool for tool in tools if tool.name == "send_email"),
         None,
@@ -44,26 +51,75 @@ async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
 
 
 
-async def send_email(to: str | list[str], subject: str, body: str, *, cc: str | list[str] | None = None, bcc: str | list[str] | None = None, config_path: str | Path = DEFAULT_CONFIG_PATH):
+async def send_email(to: str | list[str], subject: str, body: str, *, html_body: str | None = None, config_path: str | Path = DEFAULT_CONFIG_PATH):
     """MCP 서버를 통해 이메일 발송"""
 
     send_email_tool = await get_send_email_tool(config_path)
 
-    payload: dict[str, Any] = {
-        "to": to if isinstance(to, list) else [to],
-        "subject": subject,
-        "body": body,
-    }
+    # payload: dict[str, Any] = {
+    #     "to": to if isinstance(to, list) else [to],
+    #     "subject": subject,
+    #     "body": body,
+    # }
 
-    if cc is not None:
-        payload["cc"] = cc if isinstance(cc, list) else [cc]
-    if bcc is not None:
-        payload["bcc"] = bcc if isinstance(bcc, list) else [bcc]
+    if html_body:
+        payload = {
+            "to": to if isinstance(to, list) else [to],
+            "subject": subject,
+            "body": body,
+            "htmlBody": html_body,
+            "mimeType": "text/html",
+        }
+    else:
+        payload = {
+            "to": to if isinstance(to, list) else [to],
+            "subject": subject,
+            "body": body,
+            "mimeType": "text/plain",
+        }
+
+    print("[DEBUG] payload =", payload)
 
     try:
-        return await send_email_tool.ainvoke(payload)
+        raw = await send_email_tool.ainvoke(payload)
+        return EmailResult(success=True, message="이메일 발송 성공", raw=raw)
 
     except Exception as exc:
-        raise RuntimeError(
-            f"이메일 발송 중 오류가 발생했습니다: {exc}"
-        ) from exc
+        return EmailResult(success=False, message=str(exc), raw=None)
+
+
+
+
+async def main():
+    print("=== MCP 이메일 HTML 전송 테스트 ===")
+
+    result = await send_email(
+        to="sbtgloballab@gmail.com",
+        subject="[TEST] HTML 이메일 테스트",
+        body="HTML 메일 테스트입니다.",
+        html_body="""
+        <!doctype html>
+        <html>
+        <body>
+            <h2>행사 참가 안내</h2>
+            <p>HTML 이메일 테스트입니다.</p>
+
+            <div style="
+                border:1px solid #ddd;
+                padding:16px;
+                border-radius:8px;
+            ">
+                <strong>가공배전 교육</strong><br>
+                주최: 대한전기협회<br>
+                기간: 2026-08-10 ~ 2026-09-18
+            </div>
+        </body>
+        </html>
+        """,
+    )
+
+    print(result)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

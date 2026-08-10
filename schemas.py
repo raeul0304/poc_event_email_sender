@@ -1,6 +1,14 @@
 # 이메일 생성 요청 및 결과 스키마
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
+from uuid import UUID
+
+@dataclass
+class EmailResult:
+    success: bool
+    message: str
+    raw: Any = None
 
 class EmailGenerationRequest(BaseModel):
     events: list[dict[str, Any]]
@@ -43,3 +51,26 @@ class AiEventSearchRequest(BaseModel):
 
 class AiSearchLLMResponse(BaseModel):
     matched_event_ids: List[str] = Field(description="쿼리에 매칭된 행사의 event_id 목록")
+
+
+#===== 스케줄러 =======
+class SchedulerFilter(BaseModel):
+    organizations: List[str] = []
+    event_types: List[str] = []
+    keywords: List[str] = []
+    venue_categories: List[str] = []
+    start_after: Optional[str] = None
+    start_before: Optional[str] = None
+
+
+class ScheduleItem(BaseModel):
+    mail_scheduler_id: UUID
+    filter: SchedulerFilter
+    mail_address_list: List[str]
+
+
+class MailSchedulerRunRequest(BaseModel):
+    schedules: List[ScheduleItem]
+
+class MailSchedulerRunResponse(BaseModel):
+    status: str

@@ -26,6 +26,7 @@ def load_system_prompt(prompt_path: str | Path = DEFAULT_PROMPT_PATH) -> str:
     return prompt
 
 
+
 def normalize_events(events: Any) -> list[dict[str, Any]]:
     """DataFrame 형태의 행사 데이터를 LLM이 읽기 좋은 형태로 정규화"""
     if hasattr(events, "to_dict"):
