@@ -1,16 +1,17 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 from services.event_repository import EventRepository
 from services.event_search import get_filter_options_data, filter_and_map_events
-from services.email_generation import generate_email
+from services.email_ai_generation import ai_generate_email
 from services.event_ai_search import ai_search_events
-from schemas import EmailGenerationRequest, EmailGenerationResponse, EventSearchRequest, EventSearchResponse, AiEventSearchRequest
+from schemas import MailSchedulerCreateRequest, EmailGenerationResponse, EventSearchRequest, EventSearchResponse, AiEventSearchRequest
 from models.factory import load_llm
 from routers.mail_schedulers import router as mail_scheduler_router
 
-load_dotenv()
 app = FastAPI()
 
 app.add_middleware(
@@ -23,22 +24,7 @@ app.add_middleware(
 
 repository = EventRepository()
 app.include_router(mail_scheduler_router)
-print("\n========== AFTER INCLUDE ==========")
 
-for route in app.routes:
-    print(
-        type(route).__name__,
-        getattr(route, "path", None),
-        getattr(route, "methods", None),
-    )
-
-print("===================================")
-
-
-@app.post("/api/mail-schedulers/run-test")
-async def run_test():
-    print("[TEST] 요청 들어옴")
-    return {"status": "ok"}
 
 # ==== 검색 =======
 
@@ -63,7 +49,12 @@ def event_keyword_serach(request: EventSearchRequest):
 @app.post("/api/events/ai-search")
 def event_ai_search(request: AiEventSearchRequest):
     df = repository.load_events_dataframe()
-    llm = load_llm(provider="openai", model="gpt-5.2", api_key=os.getenv("OPEN_API_KEY"))
+    provider=os.getenv("LLM_PROVIDER", "openai")
+    model=os.getenv("LLM_MODEL", "gpt-5.2")
+    api_key=os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")  
+    print(f"[LLM] provider={provider}, model={model}")
+
+    llm = load_llm(provider=provider, model=model, api_key=api_key)
 
     try:
         result = ai_search_events(llm, df, request)
@@ -73,12 +64,3 @@ def event_ai_search(request: AiEventSearchRequest):
 
     return result
 
-
-
-# ====== 스케줄 등록, 조회, 수정 =======
-
-
-
-
-
-# ====== 스케줄러 실행 - 이메일 발송 =====

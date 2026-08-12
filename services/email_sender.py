@@ -1,5 +1,6 @@
 import json
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -8,7 +9,6 @@ from schemas import EmailResult
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
-
 
 
 def load_server_config(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
@@ -33,10 +33,6 @@ async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
     client = MultiServerMCPClient(config)
     tools = await client.get_tools()
 
-    for tool in tools:
-        print(tool.name)
-        print(tool.args_schema)
-
     send_email_tool = next(
         (tool for tool in tools if tool.name == "send_email"),
         None,
@@ -54,34 +50,35 @@ async def get_send_email_tool(config_path: str | Path = DEFAULT_CONFIG_PATH):
 async def send_email(to: str | list[str], subject: str, body: str, *, html_body: str | None = None, config_path: str | Path = DEFAULT_CONFIG_PATH):
     """MCP 서버를 통해 이메일 발송"""
 
-    send_email_tool = await get_send_email_tool(config_path)
-
-    # payload: dict[str, Any] = {
-    #     "to": to if isinstance(to, list) else [to],
-    #     "subject": subject,
-    #     "body": body,
-    # }
-
-    if html_body:
-        payload = {
-            "to": to if isinstance(to, list) else [to],
-            "subject": subject,
-            "body": body,
-            "htmlBody": html_body,
-            "mimeType": "text/html",
-        }
-    else:
-        payload = {
-            "to": to if isinstance(to, list) else [to],
-            "subject": subject,
-            "body": body,
-            "mimeType": "text/plain",
-        }
-
-    print("[DEBUG] payload =", payload)
-
     try:
+        send_email_tool = await get_send_email_tool(config_path)
+        raw_recipients = to if isinstance(to, list) else [to]
+        recipients = [
+            address.strip()
+            for address in raw_recipients
+            if isinstance(address, str) and address.strip()
+        ]
+
+        if html_body:
+            payload = {
+                "to": recipients,
+                "subject": subject,
+                "body": body,
+                "htmlBody": html_body,
+                "mimeType": "text/html",
+            }
+        else:
+            payload = {
+                "to":recipients,
+                "subject": subject,
+                "body": body,
+                "mimeType": "text/plain",
+            }
+
+        #print("[DEBUG] payload =", payload)
+
         raw = await send_email_tool.ainvoke(payload)
+        print(f"\n\n [DEBUG] Gmail MCP raw 응답 : {raw}")
         return EmailResult(success=True, message="이메일 발송 성공", raw=raw)
 
     except Exception as exc:

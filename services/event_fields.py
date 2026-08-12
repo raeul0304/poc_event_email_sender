@@ -18,6 +18,16 @@ KR_TO_EN: dict[str, str] = {v: k for k, v in COLUMN_MAP.items()}
 DROPDOWN_FIELDS = ["organizer", "event_type", "location", "keyword"]
 COMMA_SEPARATED_FIELDS = ["keyword"]
 
+FILTER_OPTION_COLUMN_MAP = {
+    "organizer": "_filter_organization",
+    "event_type": "_filter_event_type",
+    "location": "_filter_venue_category",
+    "keyword": "_filter_keywords",
+}
+FILTER_OPTION_ARRAY_FIELDS = {
+    "keyword",
+}
+
 SEARCH_FIELDS: frozenset[str] = frozenset({
     "event_id", "title", "organizer", "event_type",
     "start_date", "end_date", "location", "summary",

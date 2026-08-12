@@ -32,7 +32,13 @@ class EventRepository:
     @lru_cache(maxsize=1)
     def load_events_dataframe(self) -> pd.DataFrame:
         query = """
-            SELECT event_id, payload::jsonb -> 'source_row' AS source_row
+            SELECT 
+                event_id, 
+                payload::jsonb -> 'source_row' AS source_row,
+                organization[1]::text AS organization,
+                event_type[1]::text AS event_type,
+                keywords::text[] AS keywords,
+                venue_category::text AS venue_category
             FROM public.events
             WHERE jsonb_typeof(payload::jsonb -> 'source_row') = 'object'
         """
@@ -51,6 +57,10 @@ class EventRepository:
         for row in rows:
             source_row = dict(row["source_row"])
             source_row["event_id"] = str(row["event_id"])
+            source_row["_filter_organization"] = row["organization"]
+            source_row["_filter_event_type"] = row["event_type"]
+            source_row["_filter_keywords"] = row["keywords"]
+            source_row["_filter_venue_category"] = row["venue_category"]
             records.append(source_row)
 
         event_df = pd.DataFrame(records)
