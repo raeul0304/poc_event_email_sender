@@ -45,7 +45,7 @@ def normalize_events(events: Any) -> list[dict[str, Any]]:
 
 
 
-def generate_email(llm: BaseLLM, request: EmailGenerationRequest, *, prompt_path: str | Path = DEFAULT_PROMPT_PATH) -> EmailGenerationResponse:
+def ai_generate_email(llm: BaseLLM, request: EmailGenerationRequest, *, prompt_path: str | Path = DEFAULT_PROMPT_PATH) -> EmailGenerationResponse:
     payload = {
         "events": normalize_events(request.events),
         "language": "Korean",

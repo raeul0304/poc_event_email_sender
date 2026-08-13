@@ -17,9 +17,17 @@ class OpenAIAdapter(BaseLLM):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            text_format=response_schema
+            text_format=response_schema,
+            temperature=0
+        )
+
+        print(
+            f"[OpenAI] model={self.model}, "
+            f"input_tokens={response.usage.input_tokens}, "
+            f"output_tokens={response.usage.output_tokens}, "
+            f"total_tokens={response.usage.total_tokens}, "
+            f"matched_count={len(response.output_parsed.matched_event_ids)}"
         )
 
         parsed_response = response.output_parsed
-        print(f"[Debug] OpenAI 응답: {parsed_response}")
         return parsed_response

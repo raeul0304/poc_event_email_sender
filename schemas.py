@@ -15,7 +15,7 @@ Weekday = Literal[
     "SUNDAY",
 ]
 
-
+# === 이메일 생성 ===
 @dataclass
 class EmailResult:
     success: bool
@@ -31,6 +31,7 @@ class EmailGenerationResponse(BaseModel):
     subject: str = Field(description="이메일 제목")
     body: str = Field(description="이메일 본문")
 
+# === 검색 관련 ===
 class EventSearchRequest(BaseModel):
     organizers: List[str] = []
     event_types: List[str] = []
@@ -63,6 +64,20 @@ class AiEventSearchRequest(BaseModel):
 
 class AiSearchLLMResponse(BaseModel):
     matched_event_ids: List[str] = Field(description="쿼리에 매칭된 행사의 event_id 목록")
+
+
+class DateRange(BaseModel):
+    start_date: str
+    end_date: str
+
+class QueryParseResult(BaseModel):
+    date_ranges: list[DateRange] = []
+    keywords: list[str] = []
+    event_types: list[str] = []
+    organizers: list[str] = []
+    venue_categories: list[str] = []
+    is_not_free: Optional[bool] = None
+    semantic_query: Optional[str] = None
 
 
 #===== 스케줄러 - 이메일 전송 =======

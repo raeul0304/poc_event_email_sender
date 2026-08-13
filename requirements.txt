@@ -14,3 +14,4 @@ python-dotenv
 psycopg2
 openai
 httpx
+email-validator
