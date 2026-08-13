@@ -25,6 +25,17 @@ app.add_middleware(
 repository = EventRepository()
 app.include_router(mail_scheduler_router)
 
+parse_llm = load_llm(
+    provider="claude",
+    model="anthropic/claude-haiku-4.5",
+    api_key=os.getenv("OPENROUTER_API_KEY")
+)
+
+search_llm = load_llm(
+    provider="openai",
+    model="gpt-5.2",
+    api_key=os.getenv("OPENAI_API_KEY")
+)
 
 # ==== 검색 =======
 
@@ -49,15 +60,8 @@ def event_keyword_serach(request: EventSearchRequest):
 @app.post("/api/events/ai-search")
 def event_ai_search(request: AiEventSearchRequest):
     df = repository.load_events_dataframe()
-    provider=os.getenv("LLM_PROVIDER", "openai")
-    model=os.getenv("LLM_MODEL", "gpt-5.2")
-    api_key=os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")  
-    print(f"[LLM] provider={provider}, model={model}")
-
-    llm = load_llm(provider=provider, model=model, api_key=api_key)
-
     try:
-        result = ai_search_events(llm, df, request)
+        result = ai_search_events(parse_llm, search_llm, df, request)
     except Exception as e:
         print(f"[Error] AI 검색 실패 : {e}")
         raise HTTPException(status_code=500, detail=f"AI 검색 중 오류가 발생했습니다: {e}")

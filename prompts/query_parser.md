@@ -8,6 +8,7 @@ You do not search or match events. You only parse the query into a JSON object.
 A JSON object with two keys:
 - `current_date`: today's date in ISO 8601 format. Use this as the anchor for all relative time expressions.
 - `query`: a natural-language search string.
+- `allowed_filters` : The filter values currently supported by the search system. Its structure : organizer, event_type, location, keyword
 
 ## Output
 Return only one valid JSON object with the following fields:
@@ -15,9 +16,9 @@ Return only one valid JSON object with the following fields:
 | Field | Type | Description |
 | --- | --- | --- |
 | `date_ranges` | list[{start_date, end_date}] | List of date range objects. Each has `start_date` and `end_date` in YYYY-MM-DD format. Empty list if no date condition. Multiple ranges used when period is non-contiguous (e.g. winter). |
-| `keywords` | list[string] | Topic keywords extractable from the query (e.g., "AI", "반도체", "원자력"). Empty list if none. |
-| `event_types` | list[string] | Event format types (e.g., 컨퍼런스, 세미나, 워크숍, 교육·훈련, 전시회, 포럼). Empty list if none. |
-| `organizers` | list[string] | Organizer names or abbreviations explicitly mentioned. Empty list if none. |
+| `keywords` | list[string] | Topic keywords extractable from the query (e.g., "AI", "반도체", "원자력") + selected from allowed_filters.keyword. Empty list if none. |
+| `event_types` | list[string] | Event format types selected only from allowed_filters.event_type. Empty list if none. |
+| `organizers` | list[string] | Organizer names or abbreviations explicitly mentioned + selected only from allowed_filters.organizer. Empty list if none. |
 | `venue_categories` | list[string] | Geographic/venue category from the enum below. Empty list if none. |
 | `is_not_free` | boolean or null | true=paid only, false=free only, null=no cost condition. |
 | `semantic_query` | string or null | Remaining conditions that cannot be expressed as structured filters. Null if all conditions are covered. |
@@ -49,8 +50,8 @@ Special cases:
 ### keywords
 Extract topic-level keywords that can be matched against event keyword tags:
 - Include domain terms, technology names, industry terms explicitly mentioned.
-- Do not include event format terms (those go to event_types) or organizer names (those go to organizers).
-- Examples: "AI", "반도체", "원자력", "핀테크", "ESG", "클라우드"
+- Values MUST come from allowed_filters.keyword.
+- If a topic cannot be safely mapped to an allowed keyword, place it in semantic_query
 
 ### event_types
 Map format-related expressions to standard labels:
@@ -58,8 +59,8 @@ Map format-related expressions to standard labels:
 - 세미나, seminar, 웨비나 (format, not location) → "세미나"
 - 워크숍, workshop, 실습 → "워크숍"
 - 교육, 훈련, 강의, 강좌, 과정 → "교육·훈련"
-- 전시회, 박람회, 엑스포 → "전시회"
-- 네트워킹, 밋업, 교류회 → "네트워킹"
+- 네트워킹, 밋업, 교류회 → "기타 행사"
+- If no appropriate allowed value exists, preserve the event type condition in semantic_query.
 
 ### organizers
 Include only when a specific organization is explicitly named in the query.
@@ -67,6 +68,7 @@ Match abbreviations to full names and vice versa:
 - KEPIC ↔ 한국전력산업기술기준
 - KOTRA ↔ 대한무역투자진흥공사
 - KISA ↔ 한국인터넷진흥원
+- If the organization cannot be safely mapped to an allowed value, preserve it in semantic_query.
 
 ### is_not_free
 - '무료', '공짜', 'free', '참가비 없는' → false
@@ -91,7 +93,7 @@ Use for conditions that cannot be expressed as structured filters, including:
 - Semantic topic matching: broad domain terms not exactly matching keyword tags.
   Example: "에너지 관련 행사", "친환경", "탄소중립"
 
-- Organizer type inference: "정부기관 주최", "공공기관", "대기업 주최"
+- Organizer type inference: "정부기관 주최", "공공기관", "대기업 주최", "전력기술"
 
 - Audience or level: "초보자 대상", "실무자 대상", "입문 과정"
 
@@ -254,5 +256,35 @@ Output:
   "venue_categories": ["아시아", "미기재·확인필요"],
   "is_not_free": null,
   "semantic_query": "중국 또는 China에서 열리는 흥미로운 행사"
+}
+```
+
+Input:
+```json
+{"current_date": "2026-08-12", "query": "전력기술에서 개최하는 행사"}
+```
+Output:
+```json
+{
+  "date_ranges": [],
+  "keywords": [], "event_types": [], "organizers": [],
+  "venue_categories": [],
+  "is_not_free": null,
+  "semantic_query": "주최: 전력기술"
+}
+```
+
+Input:
+```json
+{"current_date": "2026-08-12", "query": "전력 관련 행사"}
+```
+Output:
+```json
+{
+  "date_ranges": [],
+  "keywords": ["전력계통"], "event_types": [], "organizers": [],
+  "venue_categories": [],
+  "is_not_free": null,
+  "semantic_query": null
 }
 ```

@@ -80,6 +80,26 @@ def get_filter_options_data(
 #         return df[df[column_name].isin(values)]
 #     return df
 
+
+def _get_unique_filter_values(df: pd.DataFrame) -> dict[str, list[str]]:
+    result = {}
+
+    for key, column in FILTER_OPTION_COLUMN_MAP.items():
+        if column not in df.columns:
+            result[key] = []
+            continue
+
+        if key in FILTER_OPTION_ARRAY_FIELDS:
+            values = df[column].dropna().explode().astype(str).str.strip().unique().tolist()
+        else:
+            values = df[column].dropna().astype(str).str.strip().unique().tolist()
+
+        result[key] = sorted(v for v in values if v)
+
+    return result
+
+
+
 def _apply_isin_filter(df: pd.DataFrame, column_name: str, values: List[str]) -> pd.DataFrame:
     """단일 DB 값이 요청 목록에 정확히 포함되는 행을 필터링"""
     if not values or column_name not in df.columns:
@@ -88,13 +108,30 @@ def _apply_isin_filter(df: pd.DataFrame, column_name: str, values: List[str]) ->
     return df[df[column_name].isin(values)]
 
 
-def _apply_contains_filter(df: pd.DataFrame, column_name: str, search_values: List[str]) -> pd.DataFrame:
-    """값 중 하나라도 포함되어 있으면 필터링"""
-    if search_values and column_name in df.columns:
-        return df[df[column_name].apply(
-            lambda x: any(v.lower() in str(x).lower() for v in search_values)
-        )]
-    return df
+def _apply_contains_filter(df: pd.DataFrame, column_name: str, search_values: list[str]) -> pd.DataFrame:
+    """검색값 중 하나라도 컬럼값에 포함되면 해당 행을 반환합니다."""
+    if not search_values or column_name not in df.columns:
+        return df
+
+    normalized_search_values = [str(value).strip().lower() for value in search_values if value]
+
+    def contains(cell_value: Any) -> bool:
+        if cell_value is None:
+            return False
+
+        # keywords::text[]로 조회된 list[str] 처리
+        if isinstance(cell_value, (list, tuple, set)):
+            cell_values = [str(value).strip().lower() for value in cell_value if value]
+        else:
+            if pd.isna(cell_value):
+                return False
+
+            cell_values = [str(cell_value).strip().lower()]
+
+        return any(search_value in cell_value for search_value in normalized_search_values for cell_value in cell_values)
+
+    return df[df[column_name].apply(contains)]
+
 
 def _apply_array_filter(df: pd.DataFrame, column_name: str, search_values: List[str]) -> pd.DataFrame:
     """DB 배열에 요청값이 하나라도 포함된 행을 필터링합니다."""
